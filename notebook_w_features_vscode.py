@@ -1,3 +1,6 @@
+# To add a new cell, type '#%%'
+# To add a new markdown cell, type '#%% [markdown]'
+
 # %%
 import seaborn as sea
 import matplotlib.pyplot as plt
@@ -7,7 +10,9 @@ from sklearn.model_selection import train_test_split
 from sklearn import svm, tree, neighbors, neural_network
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
+
 
 # %%
 train_data = pd.read_csv('train.csv')
@@ -44,6 +49,10 @@ for train_data in data:
 
     train_data['Title'] = train_data['Name'].str.split(
         ", ", expand=True)[1].str.split(".", expand=True)[0]
+    train_data['Title'] = train_data['Title'].replace('Mlle', 'Miss')
+    train_data['Title'] = train_data['Title'].replace('Ms', 'Miss')
+    train_data['Title'] = train_data['Title'].replace('Mme', 'Mrs')
+
     stat_min = 10
     title_names = (train_data['Title'].value_counts() < stat_min)
 
@@ -55,24 +64,27 @@ for train_data in data:
     for col in encode:
         train_data[col] = encoder.fit_transform(train_data[col])
 
-X_train = train_data.loc[:, train_data.columns != 'Name']
-X_train = X_train.loc[:, X_train.columns != 'Survived']
+X_train = train_data.loc[:, train_data.columns != 'Survived']
+X_train = X_train.loc[:, X_train.columns != 'Name']
 
 y_train = train_data.loc[:, 'Survived']
 
 X_train, X_test, y_train, y_test = train_test_split(
-    X_train, y_train, test_size=0.33, random_state=10)
+    X_train, y_train, test_size=0.20, random_state=10)
+
 
 # %%
-print(X_train.head())
+print(X_train.groupby(['Title']).count())
 print(y_train.head())
 print(test_data.head())
+
 
 # %%
 
 pp = sea.pairplot(train_data, hue='Survived', palette='deep', size=1.2,
                   diag_kind='kde', diag_kws=dict(shade=True), plot_kws=dict(s=10))
 pp.set(xticklabels=[])
+
 
 # %%
 tree_clf = tree.DecisionTreeClassifier()
@@ -90,14 +102,30 @@ print(knn_clf.score(X_test.values, y_test.values))
 NN_clf = neural_network.MLPClassifier()
 NN_clf.fit(X_train.values, y_train.values)
 print(NN_clf.score(X_test.values, y_test.values))
+y_pred = NN_clf.predict(X_test.values)
+y_truth = y_test.values
 
 
 # %%
-svm_clf = svm.SVC(kernel='linear')
-svm_clf.fit(X_train.values, y_train.values)
-print(svm_clf.score(X_test.values, y_test.values))
-y_pred = svm_clf.predict(X_test.values)
-y_truth = y_test.values
+# svm_clf = svm.SVC(kernel='linear', verbose=True)
+# svm_clf.fit(X_train.values, y_train.values)
+# print(svm_clf.score(X_test.values, y_test.values))
+# y_pred = svm_clf.predict(X_test.values)
+# y_truth = y_test.values
+
+
+# %%
+random_forest = RandomForestClassifier(n_estimators=100)
+random_forest.fit(X_train.values, y_train.values)
+print(random_forest.score(X_test.values, y_test.values))
+
+
+# %%
+importances = pd.DataFrame({'feature': X_train.columns, 'importance': np.round(
+    random_forest.feature_importances_, 3)})
+importances = importances.sort_values(
+    'importance', ascending=False).set_index('feature')
+importances.head(15)
 
 
 # %%
@@ -109,6 +137,8 @@ print("True Negatives", tn)
 print("False Positives", fp)
 print("False Negatives", fn)
 print("True Positives", tp)
+print("False Positive rate", fp/(fp+tn))
+print("False Negative rate", fn/(fn+tp))
 
 
 # %%
@@ -163,7 +193,7 @@ plt.show()
 
 
 # %%
-predictions = svm_clf.predict(test_data.values)
+predictions = random_forest.predict(test_data.values)
 
 
 # %%
